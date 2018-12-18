@@ -8,7 +8,7 @@
 #define POLYNOMIALS_AMOUNT 100
 
 #undef DEBUG
-#define DEBUG 0 // change here if debug
+#define DEBUG 1 // change here if debug
 #if DEBUG
 #undef EOF
 #define EOF 'q'
@@ -20,12 +20,14 @@
 struct Polynomial {
     int degree;
     int *monomials;
+    char operation;
 };
 
 struct Polynomial *new_polynomial() {
     struct Polynomial *polynomial = malloc(sizeof(struct Polynomial));
     polynomial->degree = 0;
     polynomial->monomials = malloc(sizeof(int) * (MAX_DEGREE + 1));
+    polynomial->operation = '+';
     return polynomial;
 }
 
@@ -68,23 +70,33 @@ void print(struct Polynomial *polynomial, int max_degree_found);
 
 void add_monomial(struct Polynomial *polynomial, int constant, int degree, int *max_degree);
 
-void add_digit(int *variable, int digit, bool negative);
+void add_digit(int *variable, int digit_char, bool negative);
 
 struct Polynomial* multiply_polynomials(struct Polynomial *pol1, struct Polynomial *pol2);
 
 void clear(int array[], size_t size);
 
-struct Polynomial* load_next_polynomial(int *last_char);
+struct Polynomial* load_next_polynomial(int *last_char, char *last_operation);
+
+int estimate_degree(struct Polynomial *polynomial, int max_degree_found);
 
 int main() {
     int last_char = 0;
+    char last_operation = '+';
+
     while (last_char != EOF) {
-        struct Polynomial *polynomial = load_next_polynomial(&last_char);
+        struct Polynomial *polynomial = load_next_polynomial(&last_char, &last_operation);
         push(polynomial);
     }
 
+    //  TODO
+    /// OPERACJE POMIEDZY WIELOMIANAMI
     while(!is_empty()) {
-        print(pop(), 10);
+        struct Polynomial *polynomial = pop();
+        if(polynomial->degree < 0) continue;
+        printf("[%c] ", polynomial->operation);
+        print(polynomial, 10);
+        printf(" [lvl %d]", polynomial->degree);
         printf("\n");
     }
 
@@ -92,7 +104,7 @@ int main() {
     return 0;
 }
 
-struct Polynomial* load_next_polynomial(int *last_char) {
+struct Polynomial* load_next_polynomial(int *last_char, char *last_operation) {
     int max_degree_found = 0;
     int constant = 0;
     int degree = 0;
@@ -100,18 +112,23 @@ struct Polynomial* load_next_polynomial(int *last_char) {
     bool loading_degree = false;
     bool loading_constant = true;
     struct Polynomial *polynomial = new_polynomial();
+    polynomial->operation = *last_operation;
 
     int c;
     do {
         c = getchar();
         *last_char = c;
 
+        if(c == '+' || c == '-' || c == '*') *last_operation = (char)c;
+
         if (isspace(c)) continue;
         if (isdigit(c) && !loading_degree) loading_constant = true;
         if (!isdigit(c)) loading_degree = false;
 
-        if(c=='(')
+        if(c=='('){
+            polynomial->degree = estimate_degree(polynomial, max_degree_found);
             return  polynomial;
+        }
 
         if (c == '^') {
             loading_degree = true;
@@ -128,7 +145,9 @@ struct Polynomial* load_next_polynomial(int *last_char) {
             loading_degree = false;
         }
 
-        if (c == '-') negative = true;
+        if (c == '-') {
+            negative = true;
+        }
 
         if (loading_constant && isdigit(c)) {
             add_digit(&constant, c, negative);
@@ -160,6 +179,7 @@ struct Polynomial* load_next_polynomial(int *last_char) {
         }
     } while (c != EOF && c != ')');
 
+    polynomial->degree = estimate_degree(polynomial, max_degree_found);
     return polynomial;
 }
 
@@ -221,4 +241,9 @@ struct Polynomial *multiply_polynomials(struct Polynomial *pol1, struct Polynomi
 
 void clear(int array[], size_t size) {
     memset(array, 0, size);
+}
+
+int estimate_degree(struct Polynomial *polynomial, int max_degree_found) {
+    while(!polynomial->monomials[max_degree_found--]);
+    return ++max_degree_found;
 }
