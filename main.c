@@ -14,62 +14,56 @@
 #define EOF 'q'
 #endif
 
-/////////////////////////////////////////////////////////////////////////
-/// Polynomial
+typedef struct Monomial {
+    int coefficient;
+    int exponent;
+} Monomial;
 
-struct Polynomial {
-    int degree;
-    int *monomials;
-    char operation;
-    int depth;
-};
+/// stack start
+typedef union StackItem {
+    char char_item;
+    Monomial *monomial_item;
+} StackItem;
 
-struct Polynomial *new_polynomial() {
-    struct Polynomial *polynomial = malloc(sizeof(struct Polynomial));
-    polynomial->degree = 0;
-    polynomial->monomials = malloc(sizeof(int) * (MAX_DEGREE + 1));
-    polynomial->operation = '+';
-    return polynomial;
+typedef struct Stack {
+    int top;
+    StackItem **items;
+} Stack;
+
+Stack* new_stack() {
+    Stack* stack = malloc(sizeof(Stack));
+    stack->top = -1;
+    stack->items = malloc(sizeof(StackItem) * POLYNOMIALS_AMOUNT);
+    return stack;
 }
 
-void delete_polynomial(struct Polynomial *polynomial) {
-    if (polynomial) {
-        free(polynomial->monomials);
-        free(polynomial);
+void delete_stack(Stack *stack) {
+    for (int i = 0; i < POLYNOMIALS_AMOUNT; ++i) {
+        if(stack->items[i]->monomial_item) free(stack->items[i]->monomial_item);
     }
+    free(stack->items);
+    free(stack);
 }
 
-void delete_polynomials(struct Polynomial *polynomials[], int length) {
-    for (int i = 0; i < length; ++i) {
-        delete_polynomial(polynomials[i]);
-    }
+void push(Stack *stack, StackItem *item) {
+    stack->items[++stack->top] = item;
 }
 
-////////////////////////////////////////////////////////////////////////
-/// Stack
-
-static struct Polynomial *polynomialStack[POLYNOMIALS_AMOUNT];
-int stackTop = -1;
-
-void push(struct Polynomial *polynomial) {
-    polynomialStack[++stackTop] = polynomial;
+StackItem* peek(Stack *stack) {
+    return stack->items[stack->top];
 }
 
-struct Polynomial *pop() {
-    return polynomialStack[stackTop--];
+StackItem* pop(Stack *stack) {
+    return stack->items[stack->top--];
 }
 
-bool is_empty() {
-    return stackTop == -1;
+bool is_empty(Stack *stack) {
+    return stack->top == -1;
 }
+/// stack end
 
-////////////////////////////////////////////////////////////////////////
 
 int max(int x, int y);
-
-void print(struct Polynomial *polynomial, int max_degree_found);
-
-void add_monomial(struct Polynomial *polynomial, int constant, int degree, int *max_degree);
 
 void add_digit(int *variable, int digit_char, bool negative);
 
@@ -77,195 +71,77 @@ struct Polynomial *multiply_polynomials(struct Polynomial *pol1, struct Polynomi
 
 void clear(int array[], size_t size);
 
-struct Polynomial *load_next_polynomial(int *last_char, char *last_operation, int *depth);
-
 int estimate_degree(struct Polynomial *polynomial, int max_degree_found);
 
 int main() {
-    int last_char = 0;
-    char last_operation = '+';
-    int depth = 0;
 
-    static struct Polynomial *polynomials[MAX_DEGREE];
-    //wypelniony nullami
 
-    while (last_char != EOF) {
-        struct Polynomial *polynomial = load_next_polynomial(&last_char, &last_operation, &depth);
-        if (last_char == '(')
-            polynomial->depth = depth - 1;
-        else if (last_char == ')')
-            polynomial->depth = depth + 1;
-        else
-            polynomial->depth = depth;
-        if (polynomials[polynomial->depth]) {
 
-        } else {
-
-        }
-        push(polynomial);
-    }
-
-    //  TODO
-    /// OPERACJE POMIEDZY WIELOMIANAMI
-    while (!is_empty()) {
-        struct Polynomial *polynomial = pop();
-        if (polynomial->degree < 0) continue;
-        printf("[%c] ", polynomial->operation);
-        print(polynomial, 10);
-        printf(" [lvl %d, dpth: %d]", polynomial->degree, polynomial->depth);
-        printf("\n");
-    }
-
-    delete_polynomials(polynomialStack, POLYNOMIALS_AMOUNT);
     return 0;
 }
 
-//depth
-struct Polynomial *load_next_polynomial(int *last_char, char *last_operation, int *depth) {
-    int max_degree_found = 0;
-    int constant = 0;
-    int degree = 0;
-    bool negative = false;
-    bool loading_degree = false;
-    bool loading_constant = true;
-    struct Polynomial *polynomial = new_polynomial();
-    polynomial->operation = *last_operation;
-
-    int c;
-    do {
-        c = getchar();
-        *last_char = c;
-
-        if (c == '+' || c == '-' || c == '*') *last_operation = (char) c;
-
-        if (isspace(c)) continue;
-        if (isdigit(c) && !loading_degree) loading_constant = true;
-        if (!isdigit(c)) loading_degree = false;
-
-        if (c == '(') {
-            *depth = *depth + 1;
-            polynomial->degree = estimate_degree(polynomial, max_degree_found);
-            return polynomial;
-        }
-
-        if (c == ')') {
-            *depth = *depth - 1;
-        }
-
-        if (c == '^') {
-            loading_degree = true;
-            loading_constant = false;
-            degree = 0;
-        }
-
-        if (!isdigit(c) && c != 'x' && c != '^') {
-            add_monomial(polynomial, constant, degree, &max_degree_found);
-            constant = 0;
-            degree = 0;
-            negative = false;
-            loading_constant = false;
-            loading_degree = false;
-        }
-
-        if (c == '-') {
-            negative = true;
-        }
-
-        if (loading_constant && isdigit(c)) {
-            add_digit(&constant, c, negative);
-        }
-
-        if (loading_degree && !loading_constant && c != '^') {
-            add_digit(&degree, c, false);
-        }
-
-        if (c == 'x') {
-            degree = 1;
-            if (!constant) {
-                constant = negative ? -1 : 1;
-                loading_constant = true;
-                loading_degree = false;
-            }
-        }
-
-        if ((c == EOF || c == ')') && !loading_constant && constant != 0) {
-            add_monomial(polynomial, constant, 1, &max_degree_found);
-        }
-
-        if ((c == EOF || c == ')') && loading_constant) {
-            add_monomial(polynomial, constant, 0, &max_degree_found);
-        }
-
-        if ((c == EOF || c == ')') && loading_degree) {
-            add_monomial(polynomial, constant, degree, &max_degree_found);
-        }
-    } while (c != EOF && c != ')');
-
-    polynomial->degree = estimate_degree(polynomial, max_degree_found);
-    return polynomial;
-}
 
 int max(int x, int y) {
     if (x > y) return x;
     else return y;
 }
 
-void print(struct Polynomial *polynomial, int max_degree_found) {
-    bool found_degree = false;
-    for (int i = max_degree_found; i >= 0; i--) {
-        if (!polynomial) continue;
-        int num = polynomial->monomials[i];
-        if (num != 0) {
-            if (num < 0 && found_degree) printf(" - ");
-            else if (num < 0) printf("-");
-            else if (found_degree) printf(" + ");
-            found_degree = true;
+//void print(struct Polynomial *polynomial, int max_degree_found) {
+//    bool found_degree = false;
+//    for (int i = max_degree_found; i >= 0; i--) {
+//        if (!polynomial) continue;
+//        int num = polynomial->monomials[i];
+//        if (num != 0) {
+//            if (num < 0 && found_degree) printf(" - ");
+//            else if (num < 0) printf("-");
+//            else if (found_degree) printf(" + ");
+//            found_degree = true;
+//
+//            if (abs(num) != 1 || i == 0) {
+//                printf("%d", abs(num));
+//            }
+//            if (i > 0) {
+//                printf("x");
+//            }
+//            if (i > 1) {
+//                printf("^%d", i);
+//            }
+//        }
+//    }
+//}
 
-            if (abs(num) != 1 || i == 0) {
-                printf("%d", abs(num));
-            }
-            if (i > 0) {
-                printf("x");
-            }
-            if (i > 1) {
-                printf("^%d", i);
-            }
-        }
-    }
-}
-
-void add_monomial(struct Polynomial *polynomial, int constant, int degree, int *max_degree) {
-    polynomial->monomials[degree] += constant;
-    *max_degree = max(*max_degree, degree);
-}
-
-void add_digit(int *variable, int digit_char, bool negative) {
-    int digit_int = (digit_char - '0');
-    *variable *= 10;
-    *variable += (negative ? -digit_int : digit_int);
-}
-
-struct Polynomial *multiply_polynomials(struct Polynomial *pol1, struct Polynomial *pol2) {
-    struct Polynomial *polynomial = new_polynomial();
-
-    for (int i = 0; i <= pol1->degree; ++i) {
-        for (int j = 0; j <= pol2->degree; ++j) {
-            polynomial->monomials[i + j] += pol1->monomials[i] * pol2->monomials[j];
-            if (polynomial->monomials[i + j] != 0) polynomial->degree = i + j;
-        }
-    }
-
-    delete_polynomial(pol1);
-    delete_polynomial(pol2);
-
-    return polynomial;
-}
-
-void clear(int array[], size_t size) {
-    memset(array, 0, size);
-}
-
-int estimate_degree(struct Polynomial *polynomial, int max_degree_found) {
-    while (!polynomial->monomials[max_degree_found--]);
-    return ++max_degree_found;
-}
+//void add_monomial(struct Polynomial *polynomial, int constant, int degree, int *max_degree) {
+//    polynomial->monomials[degree] += constant;
+//    *max_degree = max(*max_degree, degree);
+//}
+//
+//void add_digit(int *variable, int digit_char, bool negative) {
+//    int digit_int = (digit_char - '0');
+//    *variable *= 10;
+//    *variable += (negative ? -digit_int : digit_int);
+//}
+//
+//struct Polynomial *multiply_polynomials(struct Polynomial *pol1, struct Polynomial *pol2) {
+//    struct Polynomial *polynomial = new_polynomial();
+//
+//    for (int i = 0; i <= pol1->degree; ++i) {
+//        for (int j = 0; j <= pol2->degree; ++j) {
+//            polynomial->monomials[i + j] += pol1->monomials[i] * pol2->monomials[j];
+//            if (polynomial->monomials[i + j] != 0) polynomial->degree = i + j;
+//        }
+//    }
+//
+//    delete_polynomial(pol1);
+//    delete_polynomial(pol2);
+//
+//    return polynomial;
+//}
+//
+//void clear(int array[], size_t size) {
+//    memset(array, 0, size);
+//}
+//
+//int estimate_degree(struct Polynomial *polynomial, int max_degree_found) {
+//    while (!polynomial->monomials[max_degree_found--]);
+//    return ++max_degree_found;
+//}
